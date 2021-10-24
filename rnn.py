@@ -11,25 +11,31 @@ Created on Fri Oct 22 15:01:13 2021
 import numpy as np
 import matplotlib.pyplot as plt
 import pandas as pd
+from datetime import datetime
 
 # Constants
 
-TIME_STEPS = 60
-LSTM_UNITS = 50
-DROPOUT = 0.2
-EPOCHS = 5
+# number of timesteps
+TIME_STEPS = 120
+# Number of neurons in LSTM
+LSTM_UNITS = 100
+# Rate that LSTM will drop when backpropagating
+DROPOUT = 0.1
+# Number of times the model training
+EPOCHS = 100
+# Number of data to feed in a batch
 BATCH_SIZE = 32
 
-# Importing the training set
+#1. Importing the training set
 dataset_train = pd.read_csv('rate_train.csv')
 training_set = dataset_train.iloc[:, 1:2].values
 
-# Feature Scaling
+#2. Feature Scaling
 from sklearn.preprocessing import MinMaxScaler
 sc = MinMaxScaler(feature_range = (0, 1))
 training_set_scaled = sc.fit_transform(training_set)
 
-# Creating a data structure with 60 timesteps and 1 output
+#3. Creating a data structure with TIME_STEPS timesteps and 1 output
 X_train = []
 y_train = []
 for i in range(TIME_STEPS, len(training_set)):
@@ -38,19 +44,19 @@ for i in range(TIME_STEPS, len(training_set)):
 X_train, y_train = np.array(X_train), np.array(y_train)
 
 
-# Reshaping
+#4 Reshaping
 X_train = np.reshape(X_train, (X_train.shape[0], X_train.shape[1], 1))
 
 
 # Part 2 - Building the RNN
 
-# Importing the Keras libraries and packages
+#1. Importing the Keras libraries and packages
 from keras.models import Sequential
 from keras.layers import Dense
 from keras.layers import LSTM
 from keras.layers import Dropout
 
-# Initialising the RNN
+#2. Initialising the RNN
 regressor = Sequential()
 
 # Adding the first LSTM layer and some Dropout regularisation
@@ -72,40 +78,45 @@ regressor.add(Dropout(DROPOUT))
 # Adding the output layer
 regressor.add(Dense(units = 1))
 
-# Compiling the RNN
+#3. Compiling the RNN
 regressor.compile(optimizer = 'adam', loss = 'mean_squared_error')
 
-# Fitting the RNN to the Training set
+#4. Fitting the RNN to the Training set
 regressor.fit(X_train, y_train, epochs = EPOCHS, batch_size = BATCH_SIZE)
 
 
 
 # Part 3 - Making the predictions and visualising the results
 
-# Getting the real stock price of 2017
+#1. Getting the real exchange rate (in test set)
 dataset_test = pd.read_csv('rate_test.csv')
-real_stock_price = dataset_test.iloc[:, 1:2].values
-dates = dataset_test.iloc[:, 0:1].values
+real_exchange_rates = dataset_test.iloc[:, 1:2].values
+dateStrings = dataset_test['date'].values
 
-# Getting the predicted stock price of 2017
+#2. Predicte exchange rate
 dataset_total = pd.concat((dataset_train['rate'], dataset_test['rate']), axis = 0)
 inputs = dataset_total[len(dataset_total) - len(dataset_test) - TIME_STEPS:].values
 inputs = inputs.reshape(-1,1)
 inputs = sc.transform(inputs)
+
 X_test = []
 for i in range(TIME_STEPS, TIME_STEPS + len(dataset_test)):
     X_test.append(inputs[i-TIME_STEPS:i, 0])
 X_test = np.array(X_test)
 X_test = np.reshape(X_test, (X_test.shape[0], X_test.shape[1], 1))
-predicted_stock_price = regressor.predict(X_test)
-predicted_stock_price = sc.inverse_transform(predicted_stock_price)
 
-# Visualising the results
-#plt.plot(real_stock_price, color = 'red', label = 'Real $->฿ Exchange Rate')
-plt.plot(dates, color = 'red', label = 'Real $->฿ Exchange Rate')
-plt.plot(predicted_stock_price, color = 'blue', label = 'Predicted $->฿ Exchange Rate')
-plt.title('$->฿ Exchange Rate Prediction')
-plt.xlabel('Time')
-plt.ylabel('$->฿ Exchange Rate')
+predicted_rate = regressor.predict(X_test)
+predicted_rate  = sc.inverse_transform(predicted_rate)
+
+# Part 4 - Visualising the results
+dates = list(map(lambda x: datetime.strptime(x, '%Y.%m.%d'), dateStrings))
+
+fig, ax = plt.subplots(sharex=True, sharey=True)
+fig.autofmt_xdate()
+
+ax.plot(dates, list(real_exchange_rates), color = 'red', label = 'Real')
+ax.plot(dates, list(predicted_rate), color = 'blue', label = 'Prediction')
+
+plt.title('USD->THB Exchange Rate Prediction')
 plt.legend()
 plt.show()
